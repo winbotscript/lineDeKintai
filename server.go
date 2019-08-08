@@ -109,7 +109,12 @@ func main() {
 								// DB登録処理
 								selector := bson.M{"userid": profile.UserID}
 								update := bson.M{"$set": bson.M{"netdekomonid": loginId}}
-								mongo.UpdateDb(selector, update, "userInfos")
+								if err := mongo.UpdateDb(selector, update, "userInfos"); err != nil {
+									logger.Write("failed netdekomonid update")
+								} else {
+									replyMessage = "ログインIDを " + loginId + " で登録しました。"
+									logger.Write("success netdekomonid update")
+								}
 							}
 
 						} else if strings.Contains(message.Text, "パスワード:") {
@@ -122,7 +127,14 @@ func main() {
 								// DB登録処理
 								selector := bson.M{"userid": profile.UserID}
 								update := bson.M{"$set": bson.M{"password": password}}
-								mongo.UpdateDb(selector, update, "userInfos")
+								if err := mongo.UpdateDb(selector, update, "userInfos"); err != nil {
+									logger.Write("failed password update")
+								} else {
+									replyMessage = "パスワードを " + password + " で登録しました。" +
+										"※暗号化して保存しております。"
+
+									logger.Write("success password update")
+								}
 							}
 
 						} else {
@@ -130,9 +142,12 @@ func main() {
 						}
 
 						// 返信処理
-						if _, err := bot.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(replyMessage)).Do(); err != nil {
-							logger.Write(err)
+						if replyMessage != "" {
+							if _, err := bot.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(replyMessage)).Do(); err != nil {
+								logger.Write(err)
+							}
 						}
+
 						logger.Write("message.Text: " + message.Text)
 					}
 				} else if event.Type == linebot.EventTypeFollow {
