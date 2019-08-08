@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"mongoHelper"
-
+	"github.com/yuki9431/autoNetDeKintai/component"
 	"github.com/yuki9431/logger"
+	"github.com/yuki9431/mongoHelper"
 
 	"github.com/globalsign/mgo/bson"
 	"github.com/line/line-bot-sdk-go/linebot"
@@ -40,6 +40,40 @@ type ApiIds struct {
 	CityId        string `json:"cityId"`
 	CertFile      string `json:"certFile"`
 	KeyFile       string `json:"keyFile"`
+}
+
+// 打刻処理
+// true: 出社 false:退社
+func punch(m *mongoHelper.MongoDb, userId string, isCome bool) (replyMessage string) {
+
+	var punchMessage string
+	kintaiInfo := new(component.User)
+
+	mongo := *m
+
+	if isCome {
+		punchMessage = "出社"
+	} else {
+		punchMessage = "退社"
+	}
+
+	// 打刻処理
+	if err := mongo.SearchDb(kintaiInfo, bson.M{"userId": userId}, "userInfos"); err != nil {
+		if kintaiInfo.Id != "" {
+			if err := component.Punch(*kintaiInfo, isCome); err != nil {
+				replyMessage = punchMessage + "しました"
+			}
+		} else {
+			replyMessage = "Error: ログインIDが登録されていません。\n" +
+				"ログインIDを登録してからご利用ください。|n" +
+				"下記の通りメッセージを送信すると登録できます。\n\n" +
+				"ログインID:<loginId>"
+		}
+	} else {
+		replyMessage = punchMessage + "に失敗しました\n" +
+			"Error: " + err.Error()
+	}
+	return
 }
 
 func main() {
@@ -95,11 +129,12 @@ func main() {
 					switch message := event.Message.(type) {
 					case *linebot.TextMessage:
 						if strings.Contains(message.Text, "出社") {
-							// 出社処理
-							replyMessage = "出社しました"
+							isCome := true
+							replyMessage = punch(&mongo, profile.UserID, isCome)
 						} else if strings.Contains(message.Text, "退社") {
 							// 退社処理
-							replyMessage = "退社しました"
+							isCome := false
+							replyMessage = punch(&mongo, profile.UserID, isCome)
 						} else if strings.Contains(message.Text, "ログインID:") {
 							loginId := strings.Replace(message.Text, " ", "", -1) // 全ての半角を消す
 							loginId = strings.Replace(loginId, "ログインID:", "", 1)  // 頭のログインID:を消す
@@ -130,8 +165,8 @@ func main() {
 								if err := mongo.UpdateDb(selector, update, "userInfos"); err != nil {
 									logger.Write("failed password update")
 								} else {
-									replyMessage = "パスワードを " + password + " で登録しました。" +
-										"※暗号化して保存しております。"
+									replyMessage = "パスワードを " + password + " で登録しました。\n" +
+										"※暗号化して保存してます。"
 
 									logger.Write("success password update")
 								}
