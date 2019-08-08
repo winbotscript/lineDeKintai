@@ -101,10 +101,29 @@ func main() {
 							// 退社処理
 							replyMessage = "退社しました"
 						} else if strings.Contains(message.Text, "ログインID:") {
+							loginId := strings.Replace(message.Text, " ", "", -1) // 全ての半角を消す
+							loginId = strings.Replace(loginId, "ログインID:", "", 1)  // 頭のログインID:を消す
+
 							// ネットDe勤怠のIDをDBに登録する
+							if loginId != "" {
+								// DB登録処理
+								selector := bson.M{"userid": profile.UserID}
+								update := bson.M{"$set": bson.M{"netdekomonid": loginId}}
+								mongo.UpdateDb(selector, update, "userInfos")
+							}
 
 						} else if strings.Contains(message.Text, "パスワード:") {
-							// ネットDe勤怠のパスワードをDBに登録する
+							password := strings.Replace(message.Text, " ", "", -1) // 全ての半角を消す
+							password = strings.Replace(password, "パスワード:", "", 1)  // 頭のパスワード:消す
+
+							// ネットDe勤怠のパスワードをDBに登録する パスワードは暗号化すること
+							if password != "" {
+								// TODO 暗号化処理
+								// DB登録処理
+								selector := bson.M{"userid": profile.UserID}
+								update := bson.M{"$set": bson.M{"password": password}}
+								mongo.UpdateDb(selector, update, "userInfos")
+							}
 
 						} else {
 							replyMessage = usage
