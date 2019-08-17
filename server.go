@@ -42,40 +42,6 @@ type ApiIds struct {
 	KeyFile       string `json:"keyFile"`
 }
 
-// 打刻処理
-// true: 出社 false:退社
-func punch(m *mongoHelper.MongoDb, userId string, isCome bool) (replyMessage string) {
-
-	var punchMessage string
-	kintaiInfo := new(component.User)
-
-	mongo := *m
-
-	if isCome {
-		punchMessage = "出社"
-	} else {
-		punchMessage = "退社"
-	}
-
-	// 打刻処理
-	if err := mongo.SearchDb(kintaiInfo, bson.M{"userId": userId}, "userInfos"); err != nil {
-		if kintaiInfo.Id != "" {
-			if err := component.Punch(*kintaiInfo, isCome); err != nil {
-				replyMessage = punchMessage + "しました"
-			}
-		} else {
-			replyMessage = "Error: ログインIDが登録されていません。\n" +
-				"ログインIDを登録してからご利用ください。|n" +
-				"下記の通りメッセージを送信すると登録できます。\n\n" +
-				"ログインID:<loginId>"
-		}
-	} else {
-		replyMessage = punchMessage + "に失敗しました\n" +
-			"Error: " + err.Error()
-	}
-	return
-}
-
 func main() {
 	// log出力設定
 	file, err := os.OpenFile(logfile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
@@ -128,13 +94,37 @@ func main() {
 
 					switch message := event.Message.(type) {
 					case *linebot.TextMessage:
-						if strings.Contains(message.Text, "出社") {
-							isCome := true
-							replyMessage = punch(&mongo, profile.UserID, isCome)
-						} else if strings.Contains(message.Text, "退社") {
-							// 退社処理
-							isCome := false
-							replyMessage = punch(&mongo, profile.UserID, isCome)
+						if strings.Contains(message.Text, "出社") || strings.Contains(message.Text, "退社") {
+							// 打刻用のパラメータ
+							var isCome bool
+							var punchMessage string
+							kintaiInfo := new(component.User)
+
+							if strings.Contains(message.Text, "出社") {
+								isCome = true
+								punchMessage = "出社"
+							} else if strings.Contains(message.Text, "退社") {
+								isCome = false
+								punchMessage = "退社"
+							}
+
+							// 打刻処理
+							if err := mongo.SearchDb(kintaiInfo, bson.M{"userId": userId}, "userInfos"); err != nil {
+								if kintaiInfo.Id != "" {
+									if err := component.Punch(*kintaiInfo, isCome); err != nil {
+										replyMessage = punchMessage + "しました"
+									}
+								} else {
+									replyMessage = "Error: ログインIDが登録されていません。\n" +
+										"ログインIDを登録してからご利用ください。\n" +
+										"下記の通りメッセージを送信すると登録できます。\n\n" +
+										"ログインID:<loginId>"
+								}
+							} else {
+								replyMessage = punchMessage + "に失敗しました\n" +
+									"Error: " + err.Error()
+							}
+
 						} else if strings.Contains(message.Text, "ログインID:") {
 							loginId := strings.Replace(message.Text, " ", "", -1) // 全ての半角を消す
 							loginId = strings.Replace(loginId, "ログインID:", "", 1)  // 頭のログインID:を消す
@@ -146,6 +136,7 @@ func main() {
 								update := bson.M{"$set": bson.M{"netdekomonid": loginId}}
 								if err := mongo.UpdateDb(selector, update, "userInfos"); err != nil {
 									logger.Write("failed netdekomonid update")
+
 								} else {
 									replyMessage = "ログインIDを " + loginId + " で登録しました。"
 									logger.Write("success netdekomonid update")
@@ -164,6 +155,7 @@ func main() {
 								update := bson.M{"$set": bson.M{"password": password}}
 								if err := mongo.UpdateDb(selector, update, "userInfos"); err != nil {
 									logger.Write("failed password update")
+
 								} else {
 									replyMessage = "パスワードを " + password + " で登録しました。\n" +
 										"※暗号化して保存してます。"
