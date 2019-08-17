@@ -108,8 +108,13 @@ func main() {
 								punchMessage = "退社"
 							}
 
+							// debug
+							logger.Write(punchMessage)
+
 							// 打刻処理
 							if err := mongo.SearchDb(kintaiInfo, bson.M{"userId": userId}, "userInfos"); err != nil {
+								logger.Write(kintaiInfo)
+
 								if kintaiInfo.Id != "" {
 									if err := component.Punch(*kintaiInfo, isCome); err != nil {
 										replyMessage = punchMessage + "しました"
@@ -123,6 +128,9 @@ func main() {
 							} else {
 								replyMessage = punchMessage + "に失敗しました\n" +
 									"Error: " + err.Error()
+
+								// debug
+								logger.Write(replyMessage)
 							}
 
 						} else if strings.Contains(message.Text, "ログインID:") {
