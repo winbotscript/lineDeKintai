@@ -20,6 +20,7 @@ const (
 	configFile = "config.json"
 	mongoDial  = "mongodb://localhost/mongodb"
 	mongoName  = "lineDeKintai"
+	imageUrl   = "https://blacksnowpi.f5.si/image/dakoku.png"
 	usage      = `機能説明`
 )
 
@@ -98,44 +99,79 @@ func main() {
 							// 打刻用のパラメータ
 							var isCome bool
 							var punchMessage string
-							userInfo := new(UserInfo)
-
-							if strings.Contains(message.Text, "出社") {
-								isCome = true
-								punchMessage = "出社"
-							} else if strings.Contains(message.Text, "退社") {
-								isCome = false
-								punchMessage = "退社"
-							}
-
-							// debug
-							logger.Write(punchMessage)
+							var userInfos []UserInfo
 
 							// 打刻処理
-							if err := mongo.SearchDb(userInfo, bson.M{"userid": userId}, "userInfos"); err != nil {
+							if err := mongo.SearchDb(&userInfos, bson.M{"userid": userId}, "userInfos"); err == nil {
 								var kintaiInfo component.User
-								kintaiInfo.Id = userInfo.NetDeKomonId
-								kintaiInfo.Password = userInfo.Password
 
-								logger.Write(kintaiInfo)
-								replyMessage = "debug"
+								// スライス型のためループするが、１つしかデータを取得できない想定
+								for _, userInfo := range userInfos {
+									kintaiInfo.Id = userInfo.NetDeKomonId
+									kintaiInfo.Password = userInfo.Password
+								}
 
-								if kintaiInfo.Id != "" {
+								// 出社・退社の判定を行う 処理が不正の場合は、打刻処理を実施しない
+								punchFlag := false
+								if strings.Contains(message.Text, "出社") {
+									if userInfos[0].IsCome == false {
+										punchFlag = true
+										isCome = true
+										punchMessage = "出社"
+
+										// DBのフラグを反転
+										selector := bson.M{"userid": profile.UserID}
+										update := bson.M{"$set": bson.M{"iscome": isCome}}
+
+										if err := mongo.UpdateDb(selector, update, "userInfos"); err != nil {
+											logger.Write("failed netdekomonid update")
+
+										}
+									} else {
+										replyMessage = "1日に何回も出社しなくていいです"
+									}
+								} else if strings.Contains(message.Text, "退社") {
+									if userInfos[0].IsCome == true {
+										punchFlag = true
+										isCome = false
+										punchMessage = "退社"
+
+										// DBのフラグを反転
+										selector := bson.M{"userid": profile.UserID}
+										update := bson.M{"$set": bson.M{"iscome": isCome}}
+
+										if err := mongo.UpdateDb(selector, update, "userInfos"); err != nil {
+											logger.Write("failed netdekomonid update")
+
+										}
+
+									} else {
+										replyMessage = "退社済みですよ？"
+									}
+								}
+
+								if kintaiInfo.Id == "" || kintaiInfo.Password == "" {
+									replyMessage = "Error: ログインID・パスワードが登録されていません。\n" +
+										"登録してからご利用ください。\n" +
+										"下記のメッセージを送信すると登録できます。\n\n" +
+										"ログインID:<loginId>\n\n" +
+										"パスワード:<password>"
+
+								} else if punchFlag {
 									if err := component.Punch(kintaiInfo, isCome); err != nil {
 										replyMessage = punchMessage + "しました"
+
+										// TODO 打刻時間を画像で送る
+										// if _, err := bot.ReplyMessage(event.ReplyToken, linebot.NewImageMessage(imageUrl, imageUrl)).Do(); err != nil {
+										// 	logger.Write(err)
+										// }
 									}
-								} else {
-									replyMessage = "Error: ログインIDが登録されていません。\n" +
-										"ログインIDを登録してからご利用ください。\n" +
-										"下記の通りメッセージを送信すると登録できます。\n\n" +
-										"ログインID:<loginId>"
 								}
+
 							} else {
+								logger.Write("DB抽出処理失敗　:" + err.Error())
 								replyMessage = punchMessage + "に失敗しました\n" +
 									"Error: " + err.Error()
-
-								// debug
-								logger.Write(replyMessage)
 							}
 
 						} else if strings.Contains(message.Text, "ログインID:") {
@@ -231,10 +267,15 @@ func main() {
 				}
 			}
 
+			mongo.DisconnectDb()
 			logger.Write("end event")
 		}
 	})
+
+	// TODO
+	//http.Handle("/image/", http.StripPrefix("/image/", http.FileServer(http.Dir("./"))))
 	http.Handle("/lineDeKintai/callback", handler)
+
 	if err := http.ListenAndServeTLS(":10443", apiIds.CertFile, apiIds.KeyFile, nil); err != nil {
 		logger.Fatal("ListenAndServe: ", err)
 	}
