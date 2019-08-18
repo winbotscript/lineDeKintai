@@ -24,7 +24,7 @@ const (
 )
 
 // ユーザプロフィール情報
-type UserInfos struct {
+type UserInfo struct {
 	UserID       string `json:"userId"`
 	DisplayName  string `json:"displayName"`
 	NetDeKomonId string `json:"netDekomonId"`
@@ -98,7 +98,7 @@ func main() {
 							// 打刻用のパラメータ
 							var isCome bool
 							var punchMessage string
-							kintaiInfo := new(component.User)
+							userInfo := new(UserInfo)
 
 							if strings.Contains(message.Text, "出社") {
 								isCome = true
@@ -112,11 +112,16 @@ func main() {
 							logger.Write(punchMessage)
 
 							// 打刻処理
-							if err := mongo.SearchDb(kintaiInfo, bson.M{"userId": userId}, "userInfos"); err != nil {
+							if err := mongo.SearchDb(userInfo, bson.M{"userid": userId}, "userInfos"); err != nil {
+								var kintaiInfo component.User
+								kintaiInfo.Id = userInfo.NetDeKomonId
+								kintaiInfo.Password = userInfo.Password
+
 								logger.Write(kintaiInfo)
+								replyMessage = "debug"
 
 								if kintaiInfo.Id != "" {
-									if err := component.Punch(*kintaiInfo, isCome); err != nil {
+									if err := component.Punch(kintaiInfo, isCome); err != nil {
 										replyMessage = punchMessage + "しました"
 									}
 								} else {
@@ -186,7 +191,7 @@ func main() {
 						logger.Write("message.Text: " + message.Text)
 					}
 				} else if event.Type == linebot.EventTypeFollow {
-					userInfo := UserInfos{
+					userInfo := UserInfo{
 						UserID:      profile.UserID,
 						DisplayName: profile.DisplayName,
 						IsCome:      false,
