@@ -96,6 +96,8 @@ func main() {
 					switch message := event.Message.(type) {
 					case *linebot.TextMessage:
 						if strings.Contains(message.Text, "出社") || strings.Contains(message.Text, "退社") {
+							logger.Write("打刻処理開始")
+
 							// 打刻用のパラメータ
 							var isCome bool
 							var punchMessage string
@@ -150,6 +152,7 @@ func main() {
 									}
 								}
 
+								// 打刻処理
 								if kintaiInfo.Id == "" || kintaiInfo.Password == "" {
 									replyMessage = "Error: ログインID・パスワードが登録されていません。\n" +
 										"登録してからご利用ください。\n" +
@@ -167,12 +170,13 @@ func main() {
 										// }
 									}
 								}
-
 							} else {
 								logger.Write("DB抽出処理失敗　:" + err.Error())
 								replyMessage = punchMessage + "に失敗しました\n" +
 									"Error: " + err.Error()
 							}
+
+							logger.Write("打刻処理終了")
 
 						} else if strings.Contains(message.Text, "ログインID:") {
 							loginId := strings.Replace(message.Text, " ", "", -1) // 全ての半角を消す
