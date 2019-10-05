@@ -150,9 +150,11 @@ func main() {
 									} else {
 										replyMessage = "退社済みですよ？"
 									}
+								} else {
+									replyMessage = "隠し機能はありません。"
 								}
 
-								// 打刻処理
+								// 実際の打刻処理
 								if kintaiInfo.Id == "" || kintaiInfo.Password == "" {
 									replyMessage = "Error: ログインID・パスワードが登録されていません。\n" +
 										"登録してからご利用ください。\n" +
