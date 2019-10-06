@@ -150,8 +150,6 @@ func main() {
 									} else {
 										replyMessage = "退社済みですよ？"
 									}
-								} else {
-									replyMessage = "隠し機能はありません。"
 								}
 
 								// 実際の打刻処理
